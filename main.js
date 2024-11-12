@@ -11,6 +11,7 @@ const planeSize = 20; // Size of the plane
 let compassElement;
 const keysPressed = {};
 let isMoving = false; // Variable to track if the sheep is currently moving
+let movementAnimation = 'Roll'; // Default movement animation
 
 // Optimize with InstancedMesh for grass blades
 function createGrassField() {
@@ -101,9 +102,9 @@ function init() {
                     animationActions.push({ name: animation.name, action: action });
                 });
             }
-            playAnimation('Idle_A');
+            playAnimation('Idle_A', { repetitions: Infinity });
         },
-        (xhr) => console.log('Loading progress:', (xhr.loaded / xhr.total * 100) + '%'),
+        null,
         (error) => console.error('Error loading FBX:', error)
     );
 
@@ -135,7 +136,17 @@ function animate() {
     requestAnimationFrame(animate);
 
     const delta = clock.getDelta();
-    if (mixer) mixer.update(delta);
+    if (mixer) {
+        mixer.update(delta);
+        if (currentAction && currentAction.getClip().name === movementAnimation) {
+            const progress = (currentAction.time / currentAction.getClip().duration) * 100;
+            if (progress >= 100) {
+                console.log(`| ${movementAnimation} animation loop completed |`);
+                currentAction.time = 0; // Reset animation time to start from the beginning
+                currentAction.play();
+            }
+        }
+    }
     
     updateMovement();
     updateCamera();
@@ -172,7 +183,13 @@ function updateMovement() {
     }
 
     if (isMoving !== wasMoving) {
-        playAnimation(isMoving ? 'Walk' : 'Idle_A');
+        if (isMoving) {
+            console.log(`Starting ${movementAnimation} animation`);
+            playAnimation(movementAnimation, { repetitions: Infinity });
+        } else {
+            console.log(`Stopping ${movementAnimation} animation, playing Idle`);
+            playAnimation('Idle_A', { repetitions: Infinity });
+        }
     }
 }
 
@@ -191,7 +208,9 @@ function updateCompass() {
 }
 
 function playAnimation(animationName, options = {}) {
-    if (!mixer) return;
+    if (!mixer) {
+        return;
+    }
 
     const {
         timeScale = 1.0,
@@ -202,28 +221,27 @@ function playAnimation(animationName, options = {}) {
     } = options;
 
     const newActionData = animationActions.find(a => a.name === animationName);
-    if (!newActionData) return;
+    if (!newActionData) {
+        console.warn(`Animation '${animationName}' not found.`);
+        return;
+    }
 
     const newAction = newActionData.action;
 
-    if (currentAction === newAction) return;
+    if (currentAction === newAction) {
+        console.log(`Animation '${animationName}' is already playing.`);
+        return;
+    }
 
     if (currentAction) {
+        console.log(`Crossfading from '${currentAction.getClip().name}' to '${animationName}'`);
         currentAction.crossFadeTo(newAction, fadeOutTime, false);
     }
 
-    if (animationName === 'Walk') {
-        const originalDuration = newAction.getClip().duration;
-        const desiredDuration = 0.42;
-        const adjustedTimeScale = originalDuration / desiredDuration;
-        newAction.setEffectiveTimeScale(adjustedTimeScale);
-
-        newAction.setLoop(THREE.LoopRepeat, Infinity);
-    } else {
-        newAction.setEffectiveTimeScale(timeScale);
-        newAction.setLoop(THREE.LoopRepeat, repetitions);
-    }
-
+    console.log('Playing animation:', animationName);
+    newAction.reset();
+    newAction.setEffectiveTimeScale(timeScale);
+    newAction.setLoop(THREE.LoopRepeat, repetitions);
     newAction.clampWhenFinished = clampWhenFinished;
     newAction.play();
 
