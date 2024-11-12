@@ -18,7 +18,7 @@ function createGrassBlade() {
     const material = new THREE.MeshPhongMaterial({
         color: 0x33aa33,
         side: THREE.DoubleSide,
-        flatShading: false
+        flatShading: true
     });
 
     const blade = new THREE.Mesh(geometry, material);
@@ -38,7 +38,7 @@ function createGrassField() {
 
     const grassGroup = new THREE.Group();
 
-    const numBlades = 1500; // Number of grass blades
+    const numBlades = 1000; // Number of grass blades
     for (let i = 0; i < numBlades; i++) {
         const blade = createGrassBlade();
         blade.position.set(
@@ -143,8 +143,8 @@ function init() {
                         }
                     });
 
-                    if (animation.name === 'Walk') {
-                        action.timeScale = 0.6;
+                    if (animation.name === 'Roll') {
+                        action.timeScale = 1.0;
                     } else if (animation.name === 'Idle_A') {
                         action.timeScale = 1.0;
                     }
@@ -258,7 +258,7 @@ function updateMovement() {
         const moveDirection = direction.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), sheep.rotation.y);
 
         sheep.position.addScaledVector(moveDirection, moveSpeed);
-        playAnimation('Walk');
+        playAnimation('Walk', { timeScale: 0.6 });
     } else {
         playAnimation('Idle_A');
     }
@@ -308,8 +308,16 @@ function updateCompass() {
 }
 
 // Function to play a specific animation by name
-function playAnimation(animationName) {
+function playAnimation(animationName, options = {}) {
     if (!mixer) return;
+
+    const {
+        timeScale = 1.0,         // Speed of the animation
+        fadeInTime = 0.3,        // Duration of fade in transition
+        fadeOutTime = 0.3,       // Duration of fade out transition
+        repetitions = Infinity,  // Number of times to repeat (-1 for infinite)
+        clampWhenFinished = false // Whether to freeze on last frame
+    } = options;
 
     const newActionData = animationActions.find(a => a.name === animationName);
     if (!newActionData) return;
@@ -321,11 +329,14 @@ function playAnimation(animationName) {
     console.log(`Starting animation: ${animationName} at ${Date.now()}`);
 
     if (currentAction) {
-        currentAction.fadeOut(0.3);
+        currentAction.fadeOut(fadeOutTime);
     }
 
     newAction.reset();
-    newAction.fadeIn(0.3);
+    newAction.fadeIn(fadeInTime);
+    newAction.setEffectiveTimeScale(timeScale);
+    newAction.setLoop(THREE.LoopRepeat, repetitions);
+    newAction.clampWhenFinished = clampWhenFinished;
     newAction.play();
 
     currentAction = newAction; // Update the currentAction
