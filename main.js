@@ -3,23 +3,22 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
 let scene, camera, renderer, mixer, sheep;
 let animationActions = []; // Array to store all animation actions
-const moveSpeed = 0.1; // Speed of the sheep movement
+let currentAction; // Variable to keep track of current action
+const moveSpeed = 0.05; // Speed of the sheep movement
 const clock = new THREE.Clock(); // Clock for delta time calculation
 let cameraMode = 'back'; // Camera mode to switch between front and back views
-let currentDirection = new THREE.Vector3(0, 0, 1); // Default direction
 const planeSize = 20; // Size of the plane
 let compassElement;
 const keysPressed = {};
-let prevMouse = { x: 0, y: 0 };
 
 function createGrassBlade() {
-    const bladeHeight = 0.3;
+    const bladeHeight = 0.4;
     const bladeWidth = 0.05;
     const geometry = new THREE.PlaneGeometry(bladeWidth, bladeHeight, 1, 4);
     const material = new THREE.MeshPhongMaterial({
         color: 0x33aa33,
         side: THREE.DoubleSide,
-        flatShading: true
+        flatShading: false
     });
 
     const blade = new THREE.Mesh(geometry, material);
@@ -39,7 +38,7 @@ function createGrassField() {
 
     const grassGroup = new THREE.Group();
 
-    const numBlades = 1000; // Number of grass blades
+    const numBlades = 1500; // Number of grass blades
     for (let i = 0; i < numBlades; i++) {
         const blade = createGrassBlade();
         blade.position.set(
@@ -105,15 +104,15 @@ function init() {
     const loader = new FBXLoader();
     loader.load(
         './Sheep_Animations.fbx',
-        function(object) {
+        function (object) {
             console.log('FBX file loaded:', object);
-            
+
             // Scale and position the model
             object.scale.setScalar(0.02);
             object.position.y = 0;
-            
+
             // Enable shadows
-            object.traverse(function(child) {
+            object.traverse(function (child) {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
@@ -129,24 +128,44 @@ function init() {
             // Store all animations in the array
             const animations = object.animations;
             if (animations && animations.length > 0) {
-                console.log('Number of animations found:', animations.length);
-                
                 animations.forEach((animation, index) => {
                     const action = mixer.clipAction(animation);
+                    action.loop = THREE.LoopRepeat;
+                    action.clampWhenFinished = false;
+
+                    console.log(`Animation: ${animation.name}, Duration: ${animation.duration.toFixed(2)} seconds`);
+
+                    // Add event listener for loop completion
+                    action.repetitions = Infinity;
+                    mixer.addEventListener('loop', function (e) {
+                        if (e.action === action) {
+                            console.log(`${animation.name} animation completed cycle at ${Date.now()}`);
+                        }
+                    });
+
+                    if (animation.name === 'Walk') {
+                        action.timeScale = 0.6;
+                    } else if (animation.name === 'Idle_A') {
+                        action.timeScale = 1.0;
+                    }
+
                     animationActions.push({
-                        name: animation.name || `Animation ${index}`,
+                        name: animation.name,
                         action: action
                     });
-                    console.log(`Loaded animation ${index}:`, animation.name || 'Unnamed');
                 });
             }
+
+            // Log the loaded animations
+            const animationList = getAnimationList();
+            console.log('Available animations:', animationList);
         },
         // Progress callback
-        function(xhr) {
+        function (xhr) {
             console.log('Loading progress:', (xhr.loaded / xhr.total * 100) + '%');
         },
         // Error callback
-        function(error) {
+        function (error) {
             console.error('Error loading FBX:', error);
         }
     );
@@ -155,7 +174,7 @@ function init() {
     window.addEventListener('resize', onWindowResize, false);
 
     // Add pointer lock setup
-    renderer.domElement.addEventListener('click', function() {
+    renderer.domElement.addEventListener('click', function () {
         renderer.domElement.requestPointerLock();
     }, false);
 
@@ -163,11 +182,12 @@ function init() {
 
     // Replace single keydown event with continuous key tracking
     window.addEventListener('keydown', (event) => {
-        keysPressed[event.key.toLowerCase()] = true;
+        // Use event.code for reliable key detection
+        keysPressed[event.code] = true;
     }, false);
 
     window.addEventListener('keyup', (event) => {
-        keysPressed[event.key.toLowerCase()] = false;
+        keysPressed[event.code] = false;
     }, false);
 
     // Create compass element
@@ -187,18 +207,18 @@ function init() {
     // Animation loop
     function animate() {
         requestAnimationFrame(animate);
-        
+
         const delta = clock.getDelta();
-        
+
         if (mixer) {
             mixer.update(delta);
         }
-        
+
         animateGrass(grassField);
         updateMovement();
         updateCamera();
         updateCompass();
-        
+
         renderer.render(scene, camera);
     }
 
@@ -207,7 +227,7 @@ function init() {
 
 function onWindowResize() {
     const aspect = window.innerWidth / window.innerHeight;
-    
+
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -218,31 +238,29 @@ function updateMovement() {
 
     const direction = new THREE.Vector3();
 
-    if (keysPressed['w']) {
+    if (keysPressed['KeyW']) {
         direction.z += 1;
     }
-    if (keysPressed['s']) {
+    if (keysPressed['KeyS']) {
         direction.z -= 1;
     }
-    if (keysPressed['a']) {
+    if (keysPressed['KeyA']) {
         direction.x -= 1;
     }
-    if (keysPressed['d']) {
+    if (keysPressed['KeyD']) {
         direction.x += 1;
     }
 
-    if (direction.length() > 0) {
+    if (direction.lengthSq() > 0) {
         direction.normalize();
-        direction.applyQuaternion(sheep.quaternion);
-        direction.y = 0;
-        currentDirection.copy(direction);
-        sheep.position.addScaledVector(direction, moveSpeed);
 
-        // Optional: Play walking animation
-        // playAnimation(walkingAnimationIndex);
+        // Rotate the direction vector by the sheep's rotation
+        const moveDirection = direction.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), sheep.rotation.y);
+
+        sheep.position.addScaledVector(moveDirection, moveSpeed);
+        playAnimation('Walk');
     } else {
-        // Optional: Play idle animation
-        // playAnimation(idleAnimationIndex);
+        playAnimation('Idle_A');
     }
 }
 
@@ -255,7 +273,7 @@ function updateCamera() {
     } else if (cameraMode === 'front') {
         offset = new THREE.Vector3(0, 4.2, 4.5); // Front view offset for third-person view
     }
-    
+
     // Apply the offset to the sheep's current orientation
     const relativeOffset = offset.clone().applyQuaternion(sheep.quaternion);
     const cameraPosition = new THREE.Vector3().copy(sheep.position).add(relativeOffset);
@@ -289,16 +307,28 @@ function updateCompass() {
     compassElement.innerText = `Direction: ${compassDirection}`;
 }
 
-// Function to play a specific animation by index
-function playAnimation(index) {
-    if (index >= 0 && index < animationActions.length) {
-        // Stop all currently playing animations
-        animationActions.forEach(({action}) => action.stop());
-        
-        // Play the selected animation
-        animationActions[index].action.play();
-        console.log(`Playing animation: ${animationActions[index].name}`);
+// Function to play a specific animation by name
+function playAnimation(animationName) {
+    if (!mixer) return;
+
+    const newActionData = animationActions.find(a => a.name === animationName);
+    if (!newActionData) return;
+
+    const newAction = newActionData.action;
+
+    if (currentAction === newAction) return;
+
+    console.log(`Starting animation: ${animationName} at ${Date.now()}`);
+
+    if (currentAction) {
+        currentAction.fadeOut(0.3);
     }
+
+    newAction.reset();
+    newAction.fadeIn(0.3);
+    newAction.play();
+
+    currentAction = newAction; // Update the currentAction
 }
 
 // Function to get the list of available animations
