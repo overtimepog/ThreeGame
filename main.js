@@ -4,7 +4,6 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 let scene, camera, renderer, mixer, sheep;
 let animationActions = []; // Array to store all animation actions
 let currentAction; // Variable to keep track of current action
-let currentActionStartTime; // Variable to keep track of when the current action started
 const moveSpeed = 0.05; // Speed of the sheep movement
 const clock = new THREE.Clock(); // Clock for delta time calculation
 let cameraMode = 'back'; // Camera mode to switch between front and back views
@@ -265,9 +264,9 @@ function updateMovement() {
     // Only change animation when movement state changes
     if (isMoving !== wasMoving) {
         if (isMoving) {
-            playAnimation('Walk'); // Adjusted timeScale for slower playback
+            playAnimation('Walk'); // Start 'Walk' animation
         } else {
-            playAnimation('Idle_A');
+            playAnimation('Idle_A'); // Transition to 'Idle_A' when stopping
         }
     }
 }
@@ -323,7 +322,7 @@ function playAnimation(animationName, options = {}) {
         timeScale = 1.0,         // Speed of the animation
         fadeInTime = 0.3,        // Duration of fade in transition
         fadeOutTime = 0.3,       // Duration of fade out transition
-        repetitions = Infinity,  // Number of times to repeat (-1 for infinite)
+        repetitions = Infinity,  // Number of times to repeat
         clampWhenFinished = false // Whether to freeze on last frame
     } = options;
 
@@ -337,27 +336,24 @@ function playAnimation(animationName, options = {}) {
         return;
     }
 
-    // Log the end time of the current action and calculate duration
-    if (currentAction) {
-        const currentTime = Date.now();
-        const duration = (currentTime - currentActionStartTime) / 1000; // in seconds
-        console.log(`Animation '${currentAction.getClip().name}' ended at ${currentTime}, duration: ${duration.toFixed(2)} seconds`);
-    }
-
-    // Update the start time for the new action
-    currentActionStartTime = Date.now();
-    console.log(`Starting animation: ${animationName} at ${currentActionStartTime}`);
-
     // Crossfade to the new action
     if (currentAction) {
         currentAction.crossFadeTo(newAction, fadeOutTime, false);
     }
 
-    // Do not reset the action to prevent unintended restarts
-    // newAction.reset();
+    if (animationName === 'Walk') {
+        // Adjust timeScale so that 'Walk' animation lasts 0.42 seconds per loop
+        const originalDuration = newAction.getClip().duration;
+        const desiredDuration = 0.42; // seconds
+        const adjustedTimeScale = originalDuration / desiredDuration;
+        newAction.setEffectiveTimeScale(adjustedTimeScale);
 
-    newAction.setEffectiveTimeScale(timeScale);
-    newAction.setLoop(THREE.LoopRepeat, repetitions);
+        newAction.setLoop(THREE.LoopRepeat, Infinity);
+    } else {
+        newAction.setEffectiveTimeScale(timeScale);
+        newAction.setLoop(THREE.LoopRepeat, repetitions);
+    }
+
     newAction.clampWhenFinished = clampWhenFinished;
     newAction.play();
 
