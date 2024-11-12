@@ -4,6 +4,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 let scene, camera, renderer, mixer, sheep;
 let animationActions = []; // Array to store all animation actions
 let currentAction; // Variable to keep track of current action
+let currentActionStartTime; // Variable to keep track of when the current action started
 const moveSpeed = 0.05; // Speed of the sheep movement
 const clock = new THREE.Clock(); // Clock for delta time calculation
 let cameraMode = 'back'; // Camera mode to switch between front and back views
@@ -264,7 +265,7 @@ function updateMovement() {
     // Only change animation when movement state changes
     if (isMoving !== wasMoving) {
         if (isMoving) {
-            playAnimation('Walk', { timeScale: 0.3 }); // Adjusted timeScale for slower playback
+            playAnimation('Walk'); // Adjusted timeScale for slower playback
         } else {
             playAnimation('Idle_A');
         }
@@ -336,7 +337,16 @@ function playAnimation(animationName, options = {}) {
         return;
     }
 
-    console.log(`Starting animation: ${animationName} at ${Date.now()}`);
+    // Log the end time of the current action and calculate duration
+    if (currentAction) {
+        const currentTime = Date.now();
+        const duration = (currentTime - currentActionStartTime) / 1000; // in seconds
+        console.log(`Animation '${currentAction.getClip().name}' ended at ${currentTime}, duration: ${duration.toFixed(2)} seconds`);
+    }
+
+    // Update the start time for the new action
+    currentActionStartTime = Date.now();
+    console.log(`Starting animation: ${animationName} at ${currentActionStartTime}`);
 
     // Crossfade to the new action
     if (currentAction) {
@@ -354,7 +364,6 @@ function playAnimation(animationName, options = {}) {
     currentAction = newAction; // Update the currentAction
 }
 
-// Function to get the list of available animations
 function getAnimationList() {
     return animationActions.map((item, index) => ({
         index: index,
