@@ -10,6 +10,7 @@ let cameraMode = 'back'; // Camera mode to switch between front and back views
 const planeSize = 20; // Size of the plane
 let compassElement;
 const keysPressed = {};
+let isMoving = false; // Variable to track if the sheep is currently moving
 
 function createGrassBlade() {
     const bladeHeight = 0.4;
@@ -128,26 +129,18 @@ function init() {
             // Store all animations in the array
             const animations = object.animations;
             if (animations && animations.length > 0) {
-                animations.forEach((animation, index) => {
+                animations.forEach((animation) => {
                     const action = mixer.clipAction(animation);
                     action.loop = THREE.LoopRepeat;
                     action.clampWhenFinished = false;
 
+                    // Set up action properties
+                    action.timeScale = 1.0;
+                    action.enabled = true;
+                    action.setEffectiveWeight(1);
+                    action.setLoop(THREE.LoopRepeat, Infinity);
+
                     console.log(`Animation: ${animation.name}, Duration: ${animation.duration.toFixed(2)} seconds`);
-
-                    // Add event listener for loop completion
-                    action.repetitions = Infinity;
-                    mixer.addEventListener('loop', function (e) {
-                        if (e.action === action) {
-                            console.log(`${animation.name} animation completed cycle at ${Date.now()}`);
-                        }
-                    });
-
-                    if (animation.name === 'Roll') {
-                        action.timeScale = 1.0;
-                    } else if (animation.name === 'Idle_A') {
-                        action.timeScale = 1.0;
-                    }
 
                     animationActions.push({
                         name: animation.name,
@@ -159,6 +152,9 @@ function init() {
             // Log the loaded animations
             const animationList = getAnimationList();
             console.log('Available animations:', animationList);
+
+            // Start with Idle animation
+            playAnimation('Idle_A');
         },
         // Progress callback
         function (xhr) {
@@ -251,6 +247,8 @@ function updateMovement() {
         direction.x += 1;
     }
 
+    const wasMoving = isMoving;
+
     if (direction.lengthSq() > 0) {
         direction.normalize();
 
@@ -258,9 +256,18 @@ function updateMovement() {
         const moveDirection = direction.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), sheep.rotation.y);
 
         sheep.position.addScaledVector(moveDirection, moveSpeed);
-        playAnimation('Walk', { timeScale: 0.6 });
+        isMoving = true;
     } else {
-        playAnimation('Idle_A');
+        isMoving = false;
+    }
+
+    // Only change animation when movement state changes
+    if (isMoving !== wasMoving) {
+        if (isMoving) {
+            playAnimation('Walk', { timeScale: 0.3 }); // Adjusted timeScale for slower playback
+        } else {
+            playAnimation('Idle_A');
+        }
     }
 }
 
@@ -324,16 +331,21 @@ function playAnimation(animationName, options = {}) {
 
     const newAction = newActionData.action;
 
-    if (currentAction === newAction) return;
+    // If the new action is already the current action, do nothing
+    if (currentAction === newAction) {
+        return;
+    }
 
     console.log(`Starting animation: ${animationName} at ${Date.now()}`);
 
+    // Crossfade to the new action
     if (currentAction) {
-        currentAction.fadeOut(fadeOutTime);
+        currentAction.crossFadeTo(newAction, fadeOutTime, false);
     }
 
-    newAction.reset();
-    newAction.fadeIn(fadeInTime);
+    // Do not reset the action to prevent unintended restarts
+    // newAction.reset();
+
     newAction.setEffectiveTimeScale(timeScale);
     newAction.setLoop(THREE.LoopRepeat, repetitions);
     newAction.clampWhenFinished = clampWhenFinished;
