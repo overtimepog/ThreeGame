@@ -219,10 +219,10 @@ function updateMovement() {
     const direction = new THREE.Vector3();
 
     if (keysPressed['w']) {
-        direction.z -= 1;
+        direction.z += 1;
     }
     if (keysPressed['s']) {
-        direction.z += 1;
+        direction.z -= 1;
     }
     if (keysPressed['a']) {
         direction.x -= 1;
