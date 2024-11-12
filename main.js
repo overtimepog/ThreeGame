@@ -29,7 +29,7 @@ function createGrassField() {
         side: THREE.DoubleSide,
         flatShading: true
     });
-    
+
     const instancedMesh = new THREE.InstancedMesh(geometry, material, numBlades);
     for (let i = 0; i < numBlades; i++) {
         const position = new THREE.Vector3(
@@ -40,7 +40,11 @@ function createGrassField() {
         const rotation = Math.random() * Math.PI;
 
         const matrix = new THREE.Matrix4();
-        matrix.compose(position, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotation), new THREE.Vector3(1, 1, 1));
+        matrix.compose(
+            position,
+            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotation),
+            new THREE.Vector3(1, 1, 1)
+        );
         instancedMesh.setMatrixAt(i, matrix);
     }
 
@@ -101,7 +105,8 @@ function init() {
                     animationActions.push({ name: animation.name, action: action });
                 });
             }
-            playAnimation('Idle_A');
+            playAnimation('Idle_A', { repetitions: Infinity, clampWhenFinished: false });
+            isMoving = false;
         },
         (xhr) => console.log('Loading progress:', (xhr.loaded / xhr.total * 100) + '%'),
         (error) => console.error('Error loading FBX:', error)
@@ -112,8 +117,8 @@ function init() {
     renderer.domElement.addEventListener('click', () => renderer.domElement.requestPointerLock());
     document.addEventListener('pointerlockchange', onPointerLockChange, false);
 
-    window.addEventListener('keydown', (event) => keysPressed[event.code] = true, false);
-    window.addEventListener('keyup', (event) => keysPressed[event.code] = false, false);
+    window.addEventListener('keydown', (event) => (keysPressed[event.code] = true), false);
+    window.addEventListener('keyup', (event) => (keysPressed[event.code] = false), false);
 
     compassElement = document.createElement('div');
     compassElement.style.position = 'absolute';
@@ -136,18 +141,11 @@ function animate() {
 
     const delta = clock.getDelta();
     if (mixer) mixer.update(delta);
-    
+
     updateMovement();
     updateCamera();
     updateCompass();
     renderer.render(scene, camera);
-}
-
-function onWindowResize() {
-    const aspect = window.innerWidth / window.innerHeight;
-    camera.aspect = aspect;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
 // Consolidate reusable vectors
@@ -155,16 +153,21 @@ const moveDirection = new THREE.Vector3();
 const cameraOffset = new THREE.Vector3();
 function updateMovement() {
     if (!sheep) return;
+
     const direction = moveDirection.set(0, 0, 0);
     if (keysPressed['KeyW']) direction.z += 1;
     if (keysPressed['KeyS']) direction.z -= 1;
     if (keysPressed['KeyA']) direction.x -= 1;
     if (keysPressed['KeyD']) direction.x += 1;
 
-    const wasMoving = isMoving;
+    const wasMoving = isMoving; // Store previous movement state
+
     if (direction.lengthSq() > 0) {
         direction.normalize();
-        const rotatedDirection = direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), sheep.rotation.y);
+        const rotatedDirection = direction.applyAxisAngle(
+            new THREE.Vector3(0, 1, 0),
+            sheep.rotation.y
+        );
         sheep.position.addScaledVector(rotatedDirection, moveSpeed);
         isMoving = true;
     } else {
@@ -172,13 +175,30 @@ function updateMovement() {
     }
 
     if (isMoving !== wasMoving) {
-        playAnimation(isMoving ? 'Walk' : 'Idle_A');
+        if (isMoving) {
+            playAnimation('Roll', {
+                fadeInTime: 0.3,
+                fadeOutTime: 0.3,
+                repetitions: Infinity,
+                clampWhenFinished: false
+            });
+        } else {
+            playAnimation('Idle_A', {
+                fadeInTime: 0.3,
+                fadeOutTime: 0.3,
+                repetitions: Infinity,
+                clampWhenFinished: false
+            });
+        }
     }
 }
 
 function updateCamera() {
     if (!sheep) return;
-    const offset = cameraMode === 'back' ? new THREE.Vector3(0, 4.2, -4.5) : new THREE.Vector3(0, 4.2, 4.5);
+    const offset =
+        cameraMode === 'back'
+            ? new THREE.Vector3(0, 4.2, -4.5)
+            : new THREE.Vector3(0, 4.2, 4.5);
     const relativeOffset = offset.applyQuaternion(sheep.quaternion);
     camera.position.lerp(cameraOffset.copy(sheep.position).add(relativeOffset), 0.1);
     camera.lookAt(sheep.position.x, sheep.position.y + 1, sheep.position.z);
@@ -201,7 +221,7 @@ function playAnimation(animationName, options = {}) {
         clampWhenFinished = false
     } = options;
 
-    const newActionData = animationActions.find(a => a.name === animationName);
+    const newActionData = animationActions.find((a) => a.name === animationName);
     if (!newActionData) return;
 
     const newAction = newActionData.action;
@@ -209,23 +229,15 @@ function playAnimation(animationName, options = {}) {
     if (currentAction === newAction) return;
 
     if (currentAction) {
-        currentAction.crossFadeTo(newAction, fadeOutTime, false);
+        currentAction.fadeOut(fadeOutTime);
     }
 
-    if (animationName === 'Walk') {
-        const originalDuration = newAction.getClip().duration;
-        const desiredDuration = 0.42;
-        const adjustedTimeScale = originalDuration / desiredDuration;
-        newAction.setEffectiveTimeScale(adjustedTimeScale);
-
-        newAction.setLoop(THREE.LoopRepeat, Infinity);
-    } else {
-        newAction.setEffectiveTimeScale(timeScale);
-        newAction.setLoop(THREE.LoopRepeat, repetitions);
-    }
-
+    newAction.reset();
+    newAction.setEffectiveTimeScale(timeScale);
+    newAction.setLoop(THREE.LoopRepeat, repetitions);
     newAction.clampWhenFinished = clampWhenFinished;
-    newAction.play();
+    newAction.enabled = true;
+    newAction.fadeIn(fadeInTime).play();
 
     currentAction = newAction;
 }
@@ -251,6 +263,13 @@ function onMouseMove(event) {
         const rotationSpeed = 0.002;
         sheep.rotation.y -= movementX * rotationSpeed;
     }
+}
+
+function onWindowResize() {
+    const aspect = window.innerWidth / window.innerHeight;
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
 init();
