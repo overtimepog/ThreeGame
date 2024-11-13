@@ -121,17 +121,10 @@ function init() {
 
             scene.add(object);
             sheep = object;
-            mixer = new THREE.AnimationMixer(object);
             const animations = object.animations;
-            if (animations && animations.length > 0) {
-                animations.forEach((animation) => {
-                    const action = mixer.clipAction(animation);
-                    action.loop = THREE.LoopRepeat;
-                    action.timeScale = 1.0;
-                    animationActions.push({ name: animation.name, action: action });
-                });
-            }
-            playAnimation(idleAnimation, { repetitions: Infinity });
+            addAnimation(object, animations);
+            animControl(object);
+            playAnimation(idleAnimation);
         },
         null,
         (error) => console.error('Error loading FBX:', error)
@@ -214,10 +207,14 @@ function updateMovement() {
     if (isMoving !== wasMoving) {
         if (isMoving) {
             console.log(`Starting ${movementAnimation} animation`);
-            playAnimation(movementAnimation, { repetitions: Infinity });
+            stopAnimations();
+            animationsSelect.value = movementAnimation;
+            playAnimation();
         } else {
             console.log(`Stopping ${movementAnimation} animation, playing Idle`);
-            playAnimation(idleAnimation, { repetitions: Infinity });
+            stopAnimations(); 
+            animationsSelect.value = idleAnimation;
+            playAnimation();
         }
     }
 }
@@ -241,46 +238,7 @@ function updateCompass() {
     lastCompassUpdate = now;
 }
 
-function playAnimation(animationName, options = {}) {
-    if (!mixer) {
-        return;
-    }
-
-    const {
-        timeScale = 1.0,
-        fadeInTime = 0.3,
-        fadeOutTime = 0.3,
-        repetitions = Infinity,
-        clampWhenFinished = false
-    } = options;
-
-    const newActionData = animationActions.find(a => a.name === animationName);
-    if (!newActionData) {
-        console.warn(`Animation '${animationName}' not found.`);
-        return;
-    }
-
-    const newAction = newActionData.action;
-
-    if (currentAction === newAction) {
-        console.log(`Animation '${animationName}' is already playing.`);
-        return;
-    }
-
-    if (currentAction) {
-        console.log(`Crossfading from '${currentAction.getClip().name}' to '${animationName}'`);
-        currentAction.crossFadeTo(newAction, fadeOutTime, false);
-    }
-
-    console.log('Playing animation:', animationName);
-    newAction.reset();
-    newAction.setEffectiveTimeScale(timeScale);
-    newAction.setLoop(THREE.LoopRepeat, repetitions);
-    newAction.clampWhenFinished = clampWhenFinished;
-    newAction.play();
-
-    currentAction = newAction;
-}
+// Animation control is now handled by stuff.js
 
 function getAnimationList() {
     return animationActions.map((item, index) => ({
