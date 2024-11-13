@@ -9,8 +9,11 @@ const _euler = new THREE.Euler();
 
 // Scene variables
 let scene, camera, renderer, mixer, sheep;
-let animationActions = [];
-let currentAction;
+let animations = {};
+let actions = {};
+let currentAnimation;
+let animationsSelect = document.getElementById('animations');
+let animsDiv = document.getElementById('anims');
 const moveSpeed = 0.05;
 const clock = new THREE.Clock();
 let cameraMode = 'back';
@@ -121,10 +124,12 @@ function init() {
 
             scene.add(object);
             sheep = object;
-            const animations = object.animations;
-            addAnimation(object, animations);
+            addAnimation(object, object.animations);
             animControl(object);
-            playAnimation(idleAnimation);
+            
+            // Set initial animation
+            animationsSelect.value = idleAnimation;
+            playAnimation();
         },
         null,
         (error) => console.error('Error loading FBX:', error)
@@ -212,10 +217,12 @@ function updateMovement() {
             playAnimation();
         } else {
             console.log(`Stopping ${movementAnimation} animation, playing Idle`);
-            stopAnimations(); 
+            stopAnimations();
             animationsSelect.value = idleAnimation;
             playAnimation();
         }
+        // Update current animation reference
+        currentAnimation = actions[animationsSelect.value];
     }
 }
 
