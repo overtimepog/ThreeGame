@@ -1,89 +1,152 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
-// Cached objects and values
-const _v3 = new THREE.Vector3();
-const _quaternion = new THREE.Quaternion();
-const _matrix4 = new THREE.Matrix4();
-const _euler = new THREE.Euler();
-
-// Scene variables
 let scene, camera, renderer, mixer, sheep;
-let animations = {};
-let actions = {};
-let currentAnimation;
-let animationsSelect = document.getElementById('animations');
-let animsDiv = document.getElementById('anims');
-const moveSpeed = 0.05;
-const clock = new THREE.Clock();
-let cameraMode = 'back';
-const planeSize = 20;
+let animationActions = []; // Array to store all animation actions
+let currentAction; // Variable to keep track of current action
+const moveSpeed = 0.05; // Speed of the sheep movement
+const clock = new THREE.Clock(); // Clock for delta time calculation
+let cameraMode = 'back'; // Camera mode to switch between front and back views
+const planeSize = 20; // Size of the plane
 let compassElement;
 const keysPressed = {};
-let isMoving = false;
-let movementAnimation = 'Roll';
+let isMoving = false; // Variable to track if the sheep is currently moving
+let movementAnimation = 'Roll'; // Default movement animation
 let idleAnimation = 'Idle_A';
 
-// Performance optimization
-let lastCompassUpdate = 0;
-const COMPASS_UPDATE_INTERVAL = 100; // ms
+/*Animation Controls */
+//credit: https://raw.githubusercontent.com/mrdoob/three.js/dev/editor/js/Sidebar.Animation.js
+
+function addAnimation( object, model_animations ) {
+
+    animations[ object.uuid ] = model_animations;
+
+    if(model_animations.length > 0 ){
+        animsDiv.style.display = "block";
+    }
+    else{
+        animsDiv.style.display = "none";
+    }
+}
+
+function animControl( object ) {
+
+    var uuid = object !== null ? object.uuid : '';
+    var anims = animations[ uuid ];
+
+    if ( anims !== undefined ) {
+
+        mixer = new THREE.AnimationMixer( object );
+        var options = {};
+        for ( var animation of anims ) {
+
+            options[ animation.name ] = animation.name;
+
+            var action = mixer.clipAction( animation );
+            actions[ animation.name ] = action;
+        }
+
+        setOptions( options );
+    }
+}
+
+function playAnimation() {
+
+    currentAnimation = actions[ animationsSelect.value ];
+    if ( currentAnimation !== undefined ) {
+
+        stopAnimations();
+        currentAnimation.play();
+      //  updateAnimation();
+
+    }
+}
+
+function playAllAnimation(anims) {
+
+    if(anims !== undefined){
+        
+        document.getElementById("playAll").onclick = function(){
+            anims.forEach(function (clip) {               
+                 mixer.clipAction(clip).reset().play();
+             });
+        }
+    }
+}       
+
+function stopAnimations() {
+
+    if ( mixer !== undefined ) {
+
+        mixer.stopAllAction();
+
+    }
+}
+
+ function setOptions( options ) {
+
+    var selected = animationsSelect.value;
+
+    while ( animationsSelect.children.length > 0 ) {
+
+        animationsSelect.removeChild( animationsSelect.firstChild );
+
+    }
+
+    for ( var key in options ) {
+
+        var option = document.createElement( 'option' );
+        option.value = key;
+        option.innerHTML = options[ key ];
+        animationsSelect.appendChild( option );
+
+    }
+
+    animationsSelect.value = selected;
+}
+
+document.getElementById("play").onclick = playAnimation;
+document.getElementById("stop").onclick = stopAnimations;
 
 // Optimize with InstancedMesh for grass blades
 function createGrassField() {
-    // Create base plane with merged geometry for better performance
     const baseGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
-    const baseMaterial = new THREE.MeshPhongMaterial({ 
-        color: 0x2d5518, 
-        shininess: 0,
-        flatShading: true 
-    });
+    const baseMaterial = new THREE.MeshPhongMaterial({ color: 0x2d5518, shininess: 0 });
     const basePlane = new THREE.Mesh(baseGeometry, baseMaterial);
     basePlane.rotation.x = -Math.PI / 2;
     basePlane.receiveShadow = true;
 
-    // Optimize grass instances
     const numBlades = 1000;
-    const bladeGeometry = new THREE.PlaneGeometry(0.05, 0.4);
-    const bladeMaterial = new THREE.MeshPhongMaterial({
+    const bladeHeight = 0.4;
+    const bladeWidth = 0.05;
+    const geometry = new THREE.PlaneGeometry(bladeWidth, bladeHeight, 1, 4);
+    const material = new THREE.MeshPhongMaterial({
         color: 0x33aa33,
         side: THREE.DoubleSide,
         flatShading: true
     });
     
-    const instancedMesh = new THREE.InstancedMesh(bladeGeometry, bladeMaterial, numBlades);
-    instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-
-    // Pre-calculate matrices for better performance
-    const position = _v3;
-    const scale = new THREE.Vector3(1, 1, 1);
-    
+    const instancedMesh = new THREE.InstancedMesh(geometry, material, numBlades);
     for (let i = 0; i < numBlades; i++) {
-        position.set(
+        const position = new THREE.Vector3(
             (Math.random() - 0.5) * planeSize,
             0,
             (Math.random() - 0.5) * planeSize
         );
-        _quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI);
-        _matrix4.compose(position, _quaternion, scale);
-        instancedMesh.setMatrixAt(i, _matrix4);
+        const rotation = Math.random() * Math.PI;
+
+        const matrix = new THREE.Matrix4();
+        matrix.compose(position, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotation), new THREE.Vector3(1, 1, 1));
+        instancedMesh.setMatrixAt(i, matrix);
     }
-    instancedMesh.instanceMatrix.needsUpdate = true;
 
     scene.add(basePlane);
     return instancedMesh;
 }
 
 function init() {
-    // Preload assets
-    const fbxLoader = new FBXLoader();
-    const textureLoader = new THREE.TextureLoader();
-    
-    // Initialize scene with optimized settings
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
-    
-    // Enable frustum culling
-    scene.matrixAutoUpdate = false;
 
     const aspect = window.innerWidth / window.innerHeight;
     camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
@@ -124,16 +187,17 @@ function init() {
 
             scene.add(object);
             sheep = object;
-            // Initialize animations
             mixer = new THREE.AnimationMixer(object);
-            addAnimation(object, object.animations);
-            animControl(object);
-            
-            // Set and play initial animation
-            if (animationsSelect) {
-                animationsSelect.value = idleAnimation;
-                playAnimation();
+            const animations = object.animations;
+            if (animations && animations.length > 0) {
+                animations.forEach((animation) => {
+                    const action = mixer.clipAction(animation);
+                    action.loop = THREE.LoopRepeat;
+                    action.timeScale = 1.0;
+                    animationActions.push({ name: animation.name, action: action });
+                });
             }
+            playAnimation(idleAnimation, { repetitions: Infinity });
         },
         null,
         (error) => console.error('Error loading FBX:', error)
@@ -216,22 +280,10 @@ function updateMovement() {
     if (isMoving !== wasMoving) {
         if (isMoving) {
             console.log(`Starting ${movementAnimation} animation`);
-            stopAnimations();
-            if (animationsSelect) {
-                animationsSelect.value = movementAnimation;
-                playAnimation();
-            }
+            playAnimation(movementAnimation, { repetitions: Infinity });
         } else {
             console.log(`Stopping ${movementAnimation} animation, playing Idle`);
-            stopAnimations();
-            if (animationsSelect) {
-                animationsSelect.value = idleAnimation;
-                playAnimation();
-            }
-        }
-        // Update current animation reference
-        if (actions && animationsSelect) {
-            currentAnimation = actions[animationsSelect.value];
+            playAnimation(idleAnimation, { repetitions: Infinity });
         }
     }
 }
@@ -246,16 +298,50 @@ function updateCamera() {
 
 function updateCompass() {
     if (!sheep) return;
-    
-    const now = performance.now();
-    if (now - lastCompassUpdate < COMPASS_UPDATE_INTERVAL) return;
-    
-    _v3.set(0, 0, -1).applyQuaternion(sheep.quaternion);
-    compassElement.innerText = `Direction: ${_v3.z > 0 ? 'S' : 'N'}`;
-    lastCompassUpdate = now;
+    const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(sheep.quaternion);
+    compassElement.innerText = `Direction: ${direction.z > 0 ? 'S' : 'N'}`;
 }
 
-// Animation control is now handled by stuff.js
+function playAnimation(animationName, options = {}) {
+    if (!mixer) {
+        return;
+    }
+
+    const {
+        timeScale = 1.0,
+        fadeInTime = 0.3,
+        fadeOutTime = 0.3,
+        repetitions = Infinity,
+        clampWhenFinished = false
+    } = options;
+
+    const newActionData = animationActions.find(a => a.name === animationName);
+    if (!newActionData) {
+        console.warn(`Animation '${animationName}' not found.`);
+        return;
+    }
+
+    const newAction = newActionData.action;
+
+    if (currentAction === newAction) {
+        console.log(`Animation '${animationName}' is already playing.`);
+        return;
+    }
+
+    if (currentAction) {
+        console.log(`Crossfading from '${currentAction.getClip().name}' to '${animationName}'`);
+        currentAction.crossFadeTo(newAction, fadeOutTime, false);
+    }
+
+    console.log('Playing animation:', animationName);
+    newAction.reset();
+    newAction.setEffectiveTimeScale(timeScale);
+    newAction.setLoop(THREE.LoopRepeat, repetitions);
+    newAction.clampWhenFinished = clampWhenFinished;
+    newAction.play();
+
+    currentAction = newAction;
+}
 
 function getAnimationList() {
     return animationActions.map((item, index) => ({
