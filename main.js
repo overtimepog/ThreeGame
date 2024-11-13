@@ -124,12 +124,16 @@ function init() {
 
             scene.add(object);
             sheep = object;
+            // Initialize animations
+            mixer = new THREE.AnimationMixer(object);
             addAnimation(object, object.animations);
             animControl(object);
             
-            // Set initial animation
-            animationsSelect.value = idleAnimation;
-            playAnimation();
+            // Set and play initial animation
+            if (animationsSelect) {
+                animationsSelect.value = idleAnimation;
+                playAnimation();
+            }
         },
         null,
         (error) => console.error('Error loading FBX:', error)
@@ -213,16 +217,22 @@ function updateMovement() {
         if (isMoving) {
             console.log(`Starting ${movementAnimation} animation`);
             stopAnimations();
-            animationsSelect.value = movementAnimation;
-            playAnimation();
+            if (animationsSelect) {
+                animationsSelect.value = movementAnimation;
+                playAnimation();
+            }
         } else {
             console.log(`Stopping ${movementAnimation} animation, playing Idle`);
             stopAnimations();
-            animationsSelect.value = idleAnimation;
-            playAnimation();
+            if (animationsSelect) {
+                animationsSelect.value = idleAnimation;
+                playAnimation();
+            }
         }
         // Update current animation reference
-        currentAnimation = actions[animationsSelect.value];
+        if (actions && animationsSelect) {
+            currentAnimation = actions[animationsSelect.value];
+        }
     }
 }
 
