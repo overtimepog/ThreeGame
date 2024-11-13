@@ -12,6 +12,7 @@ let compassElement;
 const keysPressed = {};
 let isMoving = false; // Variable to track if the sheep is currently moving
 let movementAnimation = 'Roll'; // Default movement animation
+let idleAnimation = 'Idle_A';
 
 // Optimize with InstancedMesh for grass blades
 function createGrassField() {
@@ -102,7 +103,7 @@ function init() {
                     animationActions.push({ name: animation.name, action: action });
                 });
             }
-            playAnimation('Idle_A', { repetitions: Infinity });
+            playAnimation(idleAnimation, { repetitions: Infinity });
         },
         null,
         (error) => console.error('Error loading FBX:', error)
@@ -188,7 +189,7 @@ function updateMovement() {
             playAnimation(movementAnimation, { repetitions: Infinity });
         } else {
             console.log(`Stopping ${movementAnimation} animation, playing Idle`);
-            playAnimation('Idle_A', { repetitions: Infinity });
+            playAnimation(idleAnimation, { repetitions: Infinity });
         }
     }
 }
