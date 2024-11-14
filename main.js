@@ -4,7 +4,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 let scene, camera, renderer, mixer, sheep;
 let animationActions = []; // Array to store all animation actions
 let currentAction; // Variable to keep track of current action
-const moveSpeed = 0.05; // Speed of the sheep movement
+const moveSpeed = 0.08; // Speed of the sheep movement
 const clock = new THREE.Clock(); // Clock for delta time calculation
 let cameraMode = 'back'; // Camera mode to switch between front and back views
 const planeSize = 20; // Size of the plane
