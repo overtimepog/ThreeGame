@@ -159,7 +159,32 @@ function createGrassField() {
     return instancedMesh;
 }
 
+function reloadScene() {
+    // Remove existing scene elements
+    if (scene) {
+        scene.clear();
+        mixer = null;
+        sheep = null;
+        animationActions = [];
+        currentAction = null;
+    }
+    
+    // Remove and reload the script
+    const oldScript = document.querySelector('script[src="main.js"]');
+    if (oldScript) {
+        oldScript.remove();
+    }
+    
+    const newScript = document.createElement('script');
+    newScript.type = 'module';
+    newScript.src = 'main.js?' + Date.now(); // Add timestamp to bypass cache
+    document.body.appendChild(newScript);
+}
+
 function init() {
+    // Add reload button event listener
+    document.getElementById('reloadButton').addEventListener('click', reloadScene);
+    
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
 
