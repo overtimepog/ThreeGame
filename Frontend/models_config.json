@@ -1,0 +1,10 @@
+{
+    "chicken": {
+        "model": "./Chicken/Chicken.fbx",
+        "scale": 0.02,
+        "animations": {
+            "walk": "./Chicken/Chicken_walk.glb",
+            "idle": "./Chicken/Chicken_idle.glb"
+        }
+    }
+} 
